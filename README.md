@@ -1,5 +1,5 @@
 # demogit
- This is anew file
+ This is a new file
 
  I am addint more things
  this is attempt to sign things
