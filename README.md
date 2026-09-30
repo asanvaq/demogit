@@ -26,8 +26,13 @@ The cutoff is the `SIGNIFICANT_LINE_THRESHOLD` constant near the top of
 `.github/workflows/review-requirements.yml`; change that value to tune what
 counts as a significant documentation edit.
 
-GitHub branch protection cannot vary its approval requirement dynamically. For
-`main`, configure branch protection to require **1 approving review** and make
-the `assess` job from the `Review requirements` workflow a **required status
-check**. The workflow escalates complex changes to two approvals by failing that
-check until both approvals are present.
+The check is **advisory and non-blocking**: it applies the
+`reviews-required-1` / `reviews-required-2` label, keeps a single sticky comment
+showing the recommended and current approval counts, and writes a job summary,
+but it never fails because of missing approvals. Do not mark the `assess` job as
+a required status check — it always passes, so doing so would not enforce
+anything.
+
+Branch protection's own **required approvals** setting on `main` remains the only
+hard gate. The workflow's 2-approval classification is a recommendation that
+reviewers should honour manually before merging.
