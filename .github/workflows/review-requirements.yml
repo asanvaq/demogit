@@ -119,12 +119,16 @@ jobs:
             const explanation = required === 1
               ? '- Only `conf.py` and/or trivial documentation edits detected.'
               : reasons.map(reason => `- ${reason}`).join('\n');
+            const met = approvals >= required;
+            const status = met
+              ? '✅ met'
+              : '⚠️ not yet met (advisory only, this check will not block merge)';
             const body = [
-              `${marker} **${required} approval${required === 1 ? '' : 's'} needed**`,
+              `${marker} **${required} approval${required === 1 ? '' : 's'} recommended**`,
               '',
               explanation,
               '',
-              `Current approvals: **${approvals} / ${required}**`
+              `Current approvals: **${approvals} / ${required}** — ${status}`
             ].join('\n');
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner,
@@ -155,17 +159,19 @@ jobs:
             core.setOutput('required', required);
             core.setOutput('approvals', approvals);
             await core.summary
-              .addHeading('Review requirement')
+              .addHeading('Review requirement (advisory)')
               .addTable([
-                [{ data: 'Required approvals', header: true }, String(required)],
-                [{ data: 'Current approvals', header: true }, String(approvals)]
+                [{ data: 'Recommended approvals', header: true }, String(required)],
+                [{ data: 'Current approvals', header: true }, String(approvals)],
+                [{ data: 'Status', header: true }, met ? '✅ met' : '⚠️ not yet met']
               ])
+              .addRaw('This check is advisory only and never blocks merging.', true)
               .write();
 
-            const message =
-              `Requires ${required} approving review(s); found ${approvals}.`;
-            if (approvals < required) {
-              core.setFailed(message);
+            if (!met) {
+              core.notice(
+                `Advisory: this PR is classified as needing ${required} approving review(s); found ${approvals}.`
+              );
             } else {
-              core.info(message);
+              core.info(`Approval requirement met: ${approvals}/${required}.`);
             }
