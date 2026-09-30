@@ -1,0 +1,171 @@
+name: Review requirements
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: review-requirements-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  assess:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    outputs:
+      required: ${{ steps.assess.outputs.required }}
+      approvals: ${{ steps.assess.outputs.approvals }}
+    steps:
+      - name: Assess review requirements
+        id: assess
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const SIGNIFICANT_LINE_THRESHOLD = 20;
+            const pullNumber = context.payload.pull_request?.number;
+
+            if (!pullNumber) {
+              core.info('No pull request found in the event payload; skipping.');
+              return;
+            }
+
+            const { owner, repo } = context.repo;
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner,
+              repo,
+              pull_number: pullNumber,
+              per_page: 100
+            });
+
+            const reasons = [];
+            for (const file of files) {
+              const path = file.filename;
+              const lowerPath = path.toLowerCase();
+              const linesChanged = file.additions + file.deletions;
+
+              if (file.status === 'added' || file.status === 'renamed') {
+                reasons.push(`new file: \`${path}\``);
+              } else if (lowerPath.endsWith('conf.py')) {
+                continue;
+              } else if (/\.(md|rst|txt)$/i.test(path)) {
+                if (linesChanged >= SIGNIFICANT_LINE_THRESHOLD) {
+                  reasons.push(
+                    `significant doc rewrite: \`${path}\` (${linesChanged} lines changed)`
+                  );
+                }
+              } else {
+                reasons.push(`non-doc change: \`${path}\``);
+              }
+            }
+
+            const required = reasons.length > 0 ? 2 : 1;
+            const requiredLabel = `reviews-required-${required}`;
+            const otherLabel = `reviews-required-${required === 1 ? 2 : 1}`;
+            const labels = [
+              { name: 'reviews-required-1', color: '0E8A16' },
+              { name: 'reviews-required-2', color: 'D93F0B' }
+            ];
+
+            for (const label of labels) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: label.name });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({ owner, repo, ...label });
+              }
+            }
+
+            await github.rest.issues.addLabels({
+              owner,
+              repo,
+              issue_number: pullNumber,
+              labels: [requiredLabel]
+            });
+            try {
+              await github.rest.issues.removeLabel({
+                owner,
+                repo,
+                issue_number: pullNumber,
+                name: otherLabel
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
+              owner,
+              repo,
+              pull_number: pullNumber,
+              per_page: 100
+            });
+            const author = context.payload.pull_request.user.login.toLowerCase();
+            const latestReviewByUser = new Map();
+            for (const review of reviews) {
+              const login = review.user?.login;
+              if (!login || login.toLowerCase() === author) continue;
+              latestReviewByUser.set(login.toLowerCase(), review.state);
+            }
+            const approvals = [...latestReviewByUser.values()]
+              .filter(state => state.toUpperCase() === 'APPROVED').length;
+
+            const marker = '### Review requirement:';
+            const explanation = required === 1
+              ? '- Only `conf.py` and/or trivial documentation edits detected.'
+              : reasons.map(reason => `- ${reason}`).join('\n');
+            const body = [
+              `${marker} **${required} approval${required === 1 ? '' : 's'} needed**`,
+              '',
+              explanation,
+              '',
+              `Current approvals: **${approvals} / ${required}**`
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: pullNumber,
+              per_page: 100
+            });
+            const existingComment = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.startsWith(marker)
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existingComment.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: pullNumber,
+                body
+              });
+            }
+
+            core.setOutput('required', required);
+            core.setOutput('approvals', approvals);
+            await core.summary
+              .addHeading('Review requirement')
+              .addTable([
+                [{ data: 'Required approvals', header: true }, String(required)],
+                [{ data: 'Current approvals', header: true }, String(approvals)]
+              ])
+              .write();
+
+            const message =
+              `Requires ${required} approving review(s); found ${approvals}.`;
+            if (approvals < required) {
+              core.setFailed(message);
+            } else {
+              core.info(message);
+            }
