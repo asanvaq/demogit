@@ -1,16 +1,23 @@
-# demogit
- This is anew file
+One thing to know: GitHub branch protection only supports a single fixed "required approvals" number per branch — a workflow can't raise it dynamically. So this workflow labels + comments, and you make it enforcing by adding a second step or a required status check.
 
- I am addint more things
- this is attempt to sign things
- second attempt
- third attempt
+To make it actually block, add this step at the end of the job:
+blocking-step.yml
 
+      - name: Enforce approval count
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const needsTwo = ... // reuse label lookup
+            const reviews = await github.paginate(github.rest.pulls.listReviews, {
 
- fourth attempt
- test 
-gggg
- testing branch 12 3j
+Then in Settings → Branches → main, set required approvals to 1 and mark this workflow's check as required. The workflow handles escalating to 2 when needed. You'll also want to add pull_request_review: types: [submitted, dismissed] to the on: triggers so it re-evaluates when reviews land.
+
+Want me to open a PR with the blocking version wired in?
+yes
+
+I've queued up the coding agent task — just waiting on your confirmation in the dialog to kick it off.
+asanvaq accepted the action
+
 
 ## Pull request review policy
 
