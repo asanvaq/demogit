@@ -24,10 +24,12 @@ requirements:
 
 The cutoff is the `SIGNIFICANT_LINE_THRESHOLD` constant near the top of
 `.github/workflows/review-requirements.yml`; change that value to tune what
-counts as a significant documentation edit. This deterministic threshold and
-the other file rules remain the floor: an AI assessment of the documentation
-diff may escalate **1 to 2 approvals**, but can never lower a 2-approval
-requirement. This prevents a non-deterministic model from weakening the gate.
+counts as a significant documentation edit. Changes to setup, deployment, or
+security instructions should be treated as significant even below this
+line-count threshold. An AI assessment of the documentation diff may escalate
+**1 to 2 approvals**, but can never lower a 2-approval requirement. This keeps
+review expectations cautious when small edits have broad operational impact.
+
 
 The AI assessment is disabled by default. Set the repository variable
 `ENABLE_AI_REVIEW_ASSESSMENT` to `true` to enable it for documentation edits
