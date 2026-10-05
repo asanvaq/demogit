@@ -108,7 +108,7 @@ jobs:
         if: steps.classify.outputs.needs_ai == 'true' && vars.ENABLE_AI_REVIEW_ASSESSMENT == 'true'
         continue-on-error: true
         timeout-minutes: 2
-        uses: actions/ai-inference@v1
+        uses: actions/ai-inference@v2
         with:
           model: openai/gpt-4o-mini
           system-prompt: |
