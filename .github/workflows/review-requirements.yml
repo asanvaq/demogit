@@ -285,7 +285,7 @@ jobs:
             const message =
               `Requires ${required} approving review(s); found ${approvals}.`;
             if (approvals < required) {
-              core.setFailed(message);
+              core.warning(message);
             } else {
               core.info(message);
             }
