@@ -45,6 +45,7 @@ jobs:
           # Background
 
           Chisel is a developer tool for extracting highly customized and specialized package slices of Ubuntu packages to create compact, secure software.
+          This issue is part of [Canonical's Open Documentation Academy (CODA)](https://documentationacademy.org/).
 
           $BACKGROUND
 
@@ -52,7 +53,7 @@ jobs:
 
           $TASK
 
-          Once you’re assigned this issue, please open a pull request directly into canonical/chisel-docs. In order to contribute, you must sign the Canonical contributor license agreement.
+          Once you’re assigned this issue, please open a pull request directly into [canonical/chisel-docs](https://github.com/canonical/chisel-docs). In order to contribute, you must sign the [Canonical contributor license agreement](https://ubuntu.com/legal/contributors).
 
           # Prerequisites
 
