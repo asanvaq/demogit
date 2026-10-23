@@ -42,8 +42,10 @@ function fixture(files, options = {}) {
       throw new Error('Unexpected pagination');
     }
   };
-  const context = { repo: { owner: 'owner', repo: 'repo' }, payload: {
-    pull_request: { number: 1, user: { login: 'author' }, title: options.title, body: options.body }
+  const context = { eventName: options.eventName || 'pull_request',
+    repo: { owner: 'owner', repo: 'repo' }, payload: {
+    pull_request: { number: 1, user: { login: 'author' }, title: options.title, body: options.body,
+      head: { repo: { fork: options.fork || false } } }
   } };
   const summary = {
     addHeading() { return this; },
@@ -54,7 +56,8 @@ function fixture(files, options = {}) {
     summary,
     setOutput(key, value) { outputs[key] = String(value); },
     setFailed(message) { changes.failure = message; },
-    info() {}
+    info() {},
+    warning() {}
   };
   return {
     outputs, changes,
@@ -76,6 +79,32 @@ function fixture(files, options = {}) {
 
 const doc = (patch = '@@ -1 +1 @@\n-old\n+new', additions = 1, deletions = 1) => ({
   filename: 'README.md', status: 'modified', additions, deletions, patch
+});
+
+test('fork PRs use the privileged target trigger without checking out PR code', () => {
+  assert.match(workflow, /^on:\n  pull_request_target:\n    types: \[opened, synchronize, reopened, ready_for_review\]\n  pull_request_review:\n    types: \[submitted, dismissed\]/m);
+  assert.doesNotMatch(workflow, /^  pull_request:/m);
+  assert.doesNotMatch(workflow, /uses:\s*actions\/checkout/i);
+});
+
+test('fork target payloads support labels, comments, and optional AI escalation', async () => {
+  for (const [response, outcome, required] of [
+    ['', 'skipped', '1'],
+    ['{"significant":false}', 'success', '1'],
+    ['{"significant":true}', 'success', '2']
+  ]) {
+    const run = fixture([doc()], {
+      eventName: 'pull_request_target', fork: true,
+      title: 'Update documentation', body: 'Describe new instructions.'
+    });
+    assert.equal((await run.classify()).needs_ai, 'true');
+    assert.match(run.outputs.pr_context, /PR title: Update documentation/);
+    await run.enforce(response, outcome);
+    assert.equal(run.outputs.required, required);
+    assert.ok(run.changes.added.includes(`reviews-required-${required}`));
+    assert.match(run.changes.created[0], new RegExp(`\\*\\*${required} approvals? needed\\*\\*`));
+    assert.equal(run.changes.failure, undefined);
+  }
 });
 
 test('renamed files require one approval', async () => {
